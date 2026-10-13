@@ -114,6 +114,15 @@ describe('DiscordConnector.sendSegmentChunks', () => {
     for (let i = 1; i < calls.length; i++) expect(calls[i]!.reply).toBeUndefined()
   })
 
+  it('keeps user mentions live in a reply, without pinging its author', async () => {
+    const { connector, channel } = h
+    await connector.sendSegmentChunks(CH, '<@200000000000000002> hello', 'reply-target-id', [])
+    expect(channel.send.mock.calls[0]![0].allowedMentions).toEqual({
+      parse: ['users'],
+      repliedUser: false,
+    })
+  })
+
   it('retries a failed later chunk without resending earlier chunks', async () => {
     const { connector, channel, sent } = h
     let call = 0
