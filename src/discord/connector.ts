@@ -3,7 +3,7 @@
  * Handles all Discord API interactions
  */
 
-import { Attachment, Client, Collection, GatewayIntentBits, Message, Partials, PermissionFlagsBits, OAuth2Scopes, TextChannel } from 'discord.js'
+import { Attachment, Client, type MessageMentionOptions, Collection, GatewayIntentBits, Message, Partials, PermissionFlagsBits, OAuth2Scopes, TextChannel } from 'discord.js'
 import { pinAddressesBot } from '../agent/pin-target.js'
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
@@ -64,6 +64,15 @@ function extractMentionedRoleIds(
   const ids = Array.from(roles.values(), (r) => r.id)
   return ids.length ? ids : undefined
 }
+
+/**
+ * Mentions for replies: don't ping the replied-to author, but keep user
+ * mentions in the text live. Discord parses no mentions at all when
+ * allowed_mentions is sent without `parse`, so `{ repliedUser: false }` alone
+ * silences every <@id> in a reply, and a mentioned bot never activates.
+ * https://discord.com/developers/docs/resources/message#allowed-mentions-object
+ */
+const REPLY_ALLOWED_MENTIONS: MessageMentionOptions = { parse: ['users'], repliedUser: false }
 
 const MAX_TEXT_ATTACHMENT_BYTES = 200_000  // ~200 KB of inline text per attachment
 
@@ -1191,7 +1200,7 @@ export class DiscordConnector {
         const sent = await channel.send({
           content,
           reply: { messageReference: replyToMessageId },
-          allowedMentions: { repliedUser: false },
+          allowedMentions: REPLY_ALLOWED_MENTIONS,
         })
         return sent.id
       } catch (error: any) {
@@ -1243,7 +1252,7 @@ export class DiscordConnector {
       if (replyToMessageId) {
         try {
           options.reply = { messageReference: replyToMessageId }
-          options.allowedMentions = { repliedUser: false }
+          options.allowedMentions = REPLY_ALLOWED_MENTIONS
           const sent = await channel.send(options)
           logger.debug({ channelId, attachmentName: attachment.name, replyTo: replyToMessageId }, 'Sent message with attachment')
           return [sent.id]
@@ -1306,7 +1315,7 @@ export class DiscordConnector {
       if (replyToMessageId) {
         try {
           options.reply = { messageReference: replyToMessageId }
-          options.allowedMentions = { repliedUser: false }
+          options.allowedMentions = REPLY_ALLOWED_MENTIONS
           const sent = await channel.send(options)
           logger.debug({ channelId, filename, replyTo: replyToMessageId }, 'Sent image attachment')
           return [sent.id]
@@ -1367,7 +1376,7 @@ export class DiscordConnector {
       if (replyToMessageId) {
         try {
           options.reply = { messageReference: replyToMessageId }
-          options.allowedMentions = { repliedUser: false }
+          options.allowedMentions = REPLY_ALLOWED_MENTIONS
           const sent = await channel.send(options)
           logger.debug({ channelId, filename, size: fileBuffer.length, replyTo: replyToMessageId }, 'Sent file attachment')
           return [sent.id]
