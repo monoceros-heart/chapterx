@@ -5,6 +5,7 @@
 
 import { Attachment, Client, type MessageMentionOptions, Collection, GatewayIntentBits, Message, Partials, PermissionFlagsBits, OAuth2Scopes, TextChannel } from 'discord.js'
 import { pinAddressesBot } from '../agent/pin-target.js'
+import { linkPlainMentions, type MentionNames } from './plain-mentions.js'
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { createHash } from 'crypto'
@@ -1016,7 +1017,28 @@ export class DiscordConnector {
    * Resolve <@username> mentions to <@USER_ID> format for Discord
    * This reverses the conversion done in convertMessage
    */
+  /**
+   * Names the channel's cached messages know, for linkPlainMentions: each
+   * author's server display name, global display name and username. The bot
+   * itself is left out, so it never pings itself.
+   */
+  private mentionNamesFor(channelId: string): MentionNames {
+    const names: MentionNames = new Map()
+    const selfId = this.client.user?.id
+    for (const msg of this.messageCache.get(channelId) ?? []) {
+      const author = msg?.author
+      if (!author || author.id === selfId) continue
+      for (const name of [msg.member?.displayName, author.globalName, author.username]) {
+        if (name) names.set(name.toLowerCase(), author.id)
+      }
+    }
+    return names
+  }
+
   private async resolveMentions(content: string, channelId: string): Promise<string> {
+    // Plain @Name text, as the model sees mentions in its context
+    content = linkPlainMentions(content, this.mentionNamesFor(channelId))
+
     // Find all <@username> patterns (not already numeric IDs)
     const mentionPattern = /<@([^>0-9][^>]*)>/g
     const matches = [...content.matchAll(mentionPattern)]
